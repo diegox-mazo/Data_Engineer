@@ -4,18 +4,16 @@ import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 from airflow.models import Variable
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import smtplib
 import os
 
-
-dag_path = os.getcwd()
-ruta_archivo_json = 'raw_data/deals_Store_2.json'
+# Ruta del Archivo
+AIRFLOW_HOME = os.getenv('AIRFLOW_HOME')
+ruta_archivo_json = AIRFLOW_HOME  + '/dags/raw_data/deals_Store_2.json'
 
 # URL de la API
 api_url = "https://www.cheapshark.com/api/1.0/deals?storeID=1&maxAge=24&sortBy=Recent"
 
+# Conexion redshift
 file_name = "redshift.txt"
 host = "data-engineer-cluster.cyhh5bfevlmn.us-east-1.redshift.amazonaws.com"
 dbname = "data-engineer-database"
@@ -23,38 +21,43 @@ user = "diegomazofl_coderhouse"
 password = Variable.get("secret_pass_redshift")
 port = '5439'
 
-# Constantes Email
-Pass_Email= Variable.get("secret_pass_email")
-smtp_server = 'smtp.gmail.com'
-smtp_port = 587
-sender_email = 'usb.prueba2020@gmail.com'
-password = Pass_Email
-
 #--------------------------------------------------------------------------------------------------
 
 # Función para extraer datos de la API
 def extraer_datos_api(url):
+    print('Extrayendo datos de API')
     response = requests.get(url)
     data = response.json()
-    print(data[0])
     data_df = pd.DataFrame(data)
+    print(data_df.head())
+    print(data_df.shape)
     return data_df
 
 # Función para extraer datos de un Archivo
 def extraer_datos_file(path):
-    print(path)
-    data = pd.read_json(path)
-    return data
+    print('Leyendo datos de Archivo')
+    try:
+        print(path)
+        data_df = pd.read_json(path)
+        print(data_df.head())
+        print(data_df.shape)
+        return data_df
+    except Exception as ex:
+        print("No es posible leer el archivo")
+        print(ex)
 
 # Función para combinar fuentes de datos dataFrames
 def concatenar_dataFrames(df1 , df2):
+    print('Combinando Data Frames')
     data_merged_df = pd.concat([df1, df2])
+    print(data_merged_df.sample(5))
+    print('Nuevo tamaño: ', data_merged_df.shape)
     return data_merged_df
-
 
 # Procesamiento de datos con DataFrame Pandas
 def transformar_datos(juegos_df):
-    
+    print('Transformando y Limpiando Datos DF')
+    #juegos_df = pd.DataFrame(data)
     juegos_df.columns = ['NombreInterno', 'Titulo', 'MetacriticLink', 'OfertaID', 'TiendaID', 'JuegoID', 'PrecioOferta', 'PrecioNormal', 'isOnSale', 'Ahorro', 'MetacriticScore', 'SteamScoreTexto', 'SteamScorePorcentaje', 'NumeroCalificaciones', 'SteamAppID', 'FechaLanzamiento', 'UltimaModificacion', 'PuntajeOferta', 'ImagenJuego']
     # Organizar tipo de datos
     juegos_df['TiendaID'] = juegos_df['TiendaID'].astype('int64')
@@ -76,6 +79,7 @@ def transformar_datos(juegos_df):
     juegos_df.fillna(0, inplace=True)
     #Evitar que haya registros duplicados
     juegos_df.drop_duplicates(subset=['JuegoID', 'OfertaID','PrecioOferta'], keep='first', inplace=True)
+    print(juegos_df.sample(10))
     print('tamaño: ',juegos_df.shape)
     return juegos_df
 
@@ -158,36 +162,13 @@ def insertar_datos_BD(data_df):
         print("Error creando tabla en Redshift")
         print(e)
 
-
-#Envio de email
-def send_email():
-        try:
-            subject = 'Carga de datos'
-            body_text = 'Los datos fueron cargados a la base de datos exitosamente.'
-
-            msg = MIMEMultipart()
-            msg['From'] = sender_email
-            msg['To'] = sender_email
-            msg['Subject'] = subject
-            msg.attach(MIMEText(body_text, 'plain'))
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()
-                server.login(sender_email, password)
-                server.send_message(msg)
-            print('El email fue enviado correctamente.')
-
-        except Exception as exception:
-            print(exception)
-            print('El email no se pudo enviar.')
-
-
 #-------------------------------------------------------------------------------
 
 def main():
     data_api = extraer_datos_api(api_url)
-    #data_file = extraer_datos_file(ruta_archivo_json)
-    #consolidated_data = concatenar_dataFrames(data_api , data_file)
-    juegos_df = transformar_datos(data_api)
+    data_file = extraer_datos_file(ruta_archivo_json)
+    consolidated_data = concatenar_dataFrames(data_api , data_file)
+    juegos_df = transformar_datos(consolidated_data)
     crear_tabla_bd()
     insertar_datos_BD(juegos_df)
 
