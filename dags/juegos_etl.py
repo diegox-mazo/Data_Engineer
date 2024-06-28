@@ -1,9 +1,9 @@
-from apiConsumer_module import extraer_datos_api
-from apiConsumer_module import extraer_datos_file
-from apiConsumer_module import concatenar_dataFrames
-from apiConsumer_module import transformar_datos
-from bdConnect_module import crear_tabla_bd
-from bdConnect_module import insertar_datos_BD
+from modules.apiConsumer_module import extraer_datos_api
+from modules.apiConsumer_module import extraer_datos_file
+from modules.apiConsumer_module import concatenar_dataFrames
+from modules.apiConsumer_module import transformar_datos
+from modules.bdConnect_module import crear_tabla_bd
+from modules.bdConnect_module import insertar_datos_BD
 import os
 
 # Ruta del Archivo

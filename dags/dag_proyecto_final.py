@@ -1,8 +1,8 @@
 from datetime import timedelta,datetime
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
-from  juegos_etl import main
-from email_service import send_email
+from juegos_etl import main
+from modules.email_service import send_email
 
 default_args = {
     'owner': 'DiegoMazo',
